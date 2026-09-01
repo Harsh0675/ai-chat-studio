@@ -18,10 +18,14 @@ This repository uses pnpm workspaces:
 
 ```bash
 pnpm install
-pnpm --filter @workspace/ai-chat-studio run dev
+PORT=3000 BASE_PATH=/ pnpm --filter @workspace/ai-chat-studio run dev
 ```
 
-The managed preview/publish workflow provides the `PORT` and `BASE_PATH` values expected by Vite.
+Vite requires `PORT` and `BASE_PATH`. The managed Replit workflow provides them; set them yourself when running locally.
+
+## Deploy
+
+Pushing to `main` runs `.github/workflows/deploy-pages.yml`, which builds the app with `BASE_PATH=/<repo-name>/` and publishes `artifacts/ai-chat-studio/dist/public` to GitHub Pages. In the repository settings, set Pages → Source to **GitHub Actions**.
 
 ## Deploy later
 
