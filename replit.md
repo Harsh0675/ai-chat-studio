@@ -1,6 +1,6 @@
-# AI Chat Studio
+# Sora
 
-AI Chat Studio is a calm, focused chat workspace for thinking through questions, shaping ideas, and returning to saved conversations.
+Sora is a calm, focused chat workspace for thinking through questions, shaping ideas, and returning to saved conversations.
 
 ## Run & Operate
 
