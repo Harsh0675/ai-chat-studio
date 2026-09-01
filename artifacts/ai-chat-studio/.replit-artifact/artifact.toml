@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Sora"
+description = "A polished AI chat workspace for having focused conversations, organizing threads, and working with an assistant in a calm, premium interface."
+version = "1.0.0"
+id = "artifacts/ai-chat-studio"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 22949
+
+[services.development]
+run = "pnpm --filter @workspace/ai-chat-studio run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/ai-chat-studio", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/ai-chat-studio/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "22949"
+BASE_PATH = "/"
