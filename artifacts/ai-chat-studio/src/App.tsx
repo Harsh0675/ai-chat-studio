@@ -103,13 +103,60 @@ const demoResponses = [
   'Here is a grounded way to begin: choose the smallest version that would still count, give it a home in your calendar, and leave a little room for the plan to become more honest as you move through it.',
 ];
 
-function readConversations(): Conversation[] {
+const providerModelMap: Record<string, string> = {
+  clarity: 'gpt-4o-mini',
+  spark: 'gpt-4o-mini',
+  depth: 'gpt-4o',
+};
+
+async function requestAssistantReply(messages: { role: Role; content: string }[], model: string) {
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3001';
+  const providerModel = providerModelMap[model] ?? 'gpt-4o-mini';
+
+  const response = await fetch(`${apiBaseUrl}/api/proxy`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: providerModel,
+      messages,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => ({}));
+    throw new Error(errorBody?.error ?? 'The assistant request failed.');
+  }
+
+  const payload = (await response.json()) as { message?: { content?: string } };
+  return payload.message?.content ?? 'I could not generate a response.';
+}
+
+function readStorageJSON<T>(key: string, fallback: T): T {
   try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    return saved ? JSON.parse(saved) : starterConversations;
+    const saved = localStorage.getItem(key);
+    return saved ? (JSON.parse(saved) as T) : fallback;
   } catch {
+    return fallback;
+  }
+}
+
+function writeStorageJSON<T>(key: string, value: T) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Storage can be unavailable in private browsing or restricted environments.
+  }
+}
+
+function readConversations(): Conversation[] {
+  const saved = readStorageJSON<Conversation[] | null>(STORAGE_KEY, null);
+  if (!Array.isArray(saved) || saved.length === 0) {
     return starterConversations;
   }
+
+  return saved;
 }
 
 function makeId(prefix: string) {
@@ -340,12 +387,14 @@ function ChatWorkspace() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('ai-chat-studio-theme') === 'dark');
+  const [darkMode, setDarkMode] = useState(() => readStorageJSON<string | null>('ai-chat-studio-theme', null) === 'dark');
   const [demoMode, setDemoMode] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? '{"demoMode":true}').demoMode ?? true; } catch { return true; }
+    const settings = readStorageJSON<{ demoMode?: boolean; model?: string } | null>(SETTINGS_KEY, null);
+    return settings?.demoMode ?? true;
   });
   const [model, setModel] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? '{"model":"clarity"}').model ?? 'clarity'; } catch { return 'clarity'; }
+    const settings = readStorageJSON<{ demoMode?: boolean; model?: string } | null>(SETTINGS_KEY, null);
+    return settings?.model ?? 'clarity';
   });
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const streamTimer = useRef<number | null>(null);
@@ -358,15 +407,20 @@ function ChatWorkspace() {
   }, [conversations, search]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations));
+    writeStorageJSON(STORAGE_KEY, conversations);
   }, [conversations]);
   useEffect(() => {
     document.documentElement.classList.toggle('dark', darkMode);
-    localStorage.setItem('ai-chat-studio-theme', darkMode ? 'dark' : 'light');
+    writeStorageJSON('ai-chat-studio-theme', darkMode ? 'dark' : 'light');
   }, [darkMode]);
   useEffect(() => {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ demoMode, model }));
+    writeStorageJSON(SETTINGS_KEY, { demoMode, model });
   }, [demoMode, model]);
+  useEffect(() => {
+    if (activeId && !conversations.some((conversation) => conversation.id === activeId)) {
+      setActiveId(null);
+    }
+  }, [activeId, conversations]);
   useEffect(() => () => { if (streamTimer.current) window.clearTimeout(streamTimer.current); }, []);
 
   const startNew = () => {
@@ -375,20 +429,64 @@ function ChatWorkspace() {
     window.setTimeout(() => composerRef.current?.focus(), 50);
   };
 
-  const respondTo = (conversationId: string, userText: string, removeMessageId?: string) => {
-    if (!demoMode) {
-      setResponseError(true);
-      return;
+  const respondTo = async (
+    conversationId: string,
+    userText: string,
+    removeMessageId?: string,
+    explicitHistory?: { role: Role; content: string }[],
+  ) => {
+    if (streamTimer.current) {
+      window.clearTimeout(streamTimer.current);
+      streamTimer.current = null;
     }
+
     setIsStreaming(true);
     setResponseError(false);
+
+    if (!demoMode) {
+      const targetConversation = conversations.find((item) => item.id === conversationId);
+      const history = explicitHistory ?? targetConversation?.messages.map((message) => ({
+        role: message.role,
+        content: message.content,
+      })) ?? [];
+
+      if (!targetConversation || history.length === 0) {
+        setIsStreaming(false);
+        setResponseError(true);
+        return;
+      }
+
+      try {
+        const response = await requestAssistantReply(history, model);
+        setConversations((items) => items.map((item) => {
+          if (item.id !== conversationId) return item;
+          const messages = removeMessageId ? item.messages.filter((message) => message.id !== removeMessageId) : item.messages;
+          return {
+            ...item,
+            messages: [...messages, { id: makeId('assistant'), role: 'assistant', content: response, createdAt: Date.now() }],
+            updatedAt: Date.now(),
+          };
+        }));
+      } catch {
+        setResponseError(true);
+      } finally {
+        setIsStreaming(false);
+      }
+      return;
+    }
+
     const response = demoResponses[Math.floor(Math.random() * demoResponses.length)];
     streamTimer.current = window.setTimeout(() => {
       setConversations((items) => items.map((item) => {
         if (item.id !== conversationId) return item;
         const messages = removeMessageId ? item.messages.filter((message) => message.id !== removeMessageId) : item.messages;
-        return { ...item, messages: [...messages, { id: makeId('assistant'), role: 'assistant', content: response, createdAt: Date.now() }], updatedAt: Date.now() };
+        return {
+          ...item,
+          messages: [...messages, { id: makeId('assistant'), role: 'assistant', content: response, createdAt: Date.now() }],
+          updatedAt: Date.now(),
+        };
       }));
+      streamTimer.current = null;
       setIsStreaming(false);
     }, 1100);
     void userText;
@@ -398,24 +496,36 @@ function ChatWorkspace() {
     event?.preventDefault();
     const text = draft.trim();
     if (!text || isStreaming) return;
+
     let conversationId = activeId;
+    let history: { role: Role; content: string }[] = [];
+
     if (!conversationId) {
       conversationId = makeId('conversation');
       const title = text.length > 43 ? `${text.slice(0, 43).trim()}…` : text;
-      setConversations((items) => [{ id: conversationId as string, title, messages: [{ id: makeId('user'), role: 'user', content: text, createdAt: Date.now() }], updatedAt: Date.now() }, ...items]);
+      const userMessage = { id: makeId('user'), role: 'user' as const, content: text, createdAt: Date.now() };
+      history = [{ role: userMessage.role, content: userMessage.content }];
+      setConversations((items) => [{ id: conversationId as string, title, messages: [userMessage], updatedAt: Date.now() }, ...items]);
       setActiveId(conversationId);
     } else {
-      setConversations((items) => items.map((item) => item.id === conversationId ? { ...item, messages: [...item.messages, { id: makeId('user'), role: 'user', content: text, createdAt: Date.now() }], updatedAt: Date.now() } : item));
+      const currentMessages = conversations.find((item) => item.id === conversationId)?.messages ?? [];
+      const userMessage = { id: makeId('user'), role: 'user' as const, content: text, createdAt: Date.now() };
+      history = [...currentMessages.map((message) => ({ role: message.role, content: message.content })), { role: userMessage.role, content: userMessage.content }];
+      setConversations((items) => items.map((item) => item.id === conversationId ? { ...item, messages: [...item.messages, userMessage], updatedAt: Date.now() } : item));
     }
+
     setDraft('');
-    respondTo(conversationId, text);
+    void respondTo(conversationId, text, undefined, history);
   };
 
   const regenerate = () => {
     if (!activeConversation || isStreaming) return;
     const lastAssistant = [...activeConversation.messages].reverse().find((message) => message.role === 'assistant');
     if (!lastAssistant) return;
-    respondTo(activeConversation.id, '', lastAssistant.id);
+    const history = activeConversation.messages
+      .filter((message) => message.id !== lastAssistant.id)
+      .map((message) => ({ role: message.role, content: message.content }));
+    void respondTo(activeConversation.id, '', lastAssistant.id, history);
   };
 
   const renameConversation = (conversation: Conversation) => {
@@ -429,7 +539,13 @@ function ChatWorkspace() {
     if (activeId === id) setActiveId(null);
   };
   const copyResponse = async (message: Message) => {
-    try { await navigator.clipboard.writeText(message.content); } catch { /* clipboard can be unavailable in local preview */ }
+    try {
+      if (navigator?.clipboard) {
+        await navigator.clipboard.writeText(message.content);
+      }
+    } catch {
+      // Clipboard can be unavailable in some browsers or restricted contexts.
+    }
     setCopiedId(message.id);
     window.setTimeout(() => setCopiedId(null), 1500);
   };
@@ -459,7 +575,7 @@ function ChatWorkspace() {
                 <div className="flex items-center gap-3 pb-2 text-[10px] text-muted-foreground"><span className="h-px flex-1 bg-border" /><span className="font-mono uppercase tracking-[0.15em]">Today</span><span className="h-px flex-1 bg-border" /></div>
                 {activeConversation.messages.map((message) => message.role === 'user' ? <UserMessage key={message.id} message={message} /> : <AssistantMessage key={message.id} message={message} copied={copiedId === message.id} onCopy={() => copyResponse(message)} />)}
                 {isStreaming && <TypingIndicator />}
-                {responseError && <div data-testid="status-response-error" className="flex items-center justify-between rounded-xl border border-[hsl(var(--destructive)/.3)] bg-[hsl(var(--destructive)/.07)] px-4 py-3 text-[12px] text-[hsl(var(--destructive))]"><span>{demoMode ? 'That response did not finish.' : 'Demo mode is off, so no response was generated.'}</span>{demoMode && <button data-testid="button-retry-response" onClick={() => respondTo(activeConversation.id, 'retry')} className="font-semibold underline">Try again</button>}</div>}
+                {responseError && <div data-testid="status-response-error" className="flex items-center justify-between rounded-xl border border-[hsl(var(--destructive)/.3)] bg-[hsl(var(--destructive)/.07)] px-4 py-3 text-[12px] text-[hsl(var(--destructive))]"><span>{demoMode ? 'That response did not finish.' : 'Demo mode is off, so no response was generated.'}</span>{demoMode && <button data-testid="button-retry-response" onClick={() => void respondTo(activeConversation.id, 'retry')} className="font-semibold underline">Try again</button>}</div>}
               </div>
             </div>
             <div className="mx-auto w-full max-w-3xl px-5 pb-5 pt-2 sm:px-8 sm:pb-8">
