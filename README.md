@@ -25,7 +25,7 @@ pnpm install
 PORT=3000 BASE_PATH=/ pnpm --filter @workspace/ai-chat-studio run dev
 ```
 
-Vite requires `PORT` and `BASE_PATH`. The managed Replit workflow provides them; set them yourself when running locally.
+`PORT` and `BASE_PATH` are optional (defaults: `4173` and `./`). The managed Replit workflow sets them explicitly.
 
 Other useful commands:
 
@@ -36,7 +36,7 @@ PORT=3000 BASE_PATH=/ pnpm run build        # typecheck + production build to ar
 
 ## Deploy
 
-- **GitHub Pages**: pushing to `main` runs `.github/workflows/deploy-pages.yml`, which builds the app with `BASE_PATH=/<repo-name>/` and publishes `artifacts/ai-chat-studio/dist/public`. In the repository settings, set Pages → Source to **GitHub Actions**.
+- **GitHub Pages**: pushing to `main` runs `.github/workflows/static.yml`, which builds the app with `BASE_PATH=/<repo-name>/` and publishes `artifacts/ai-chat-studio/dist/public`. In the repository settings, set Pages → Source to **GitHub Actions**.
 - **Vercel**: `vercel.json` configures the install/build commands, output directory, and SPA rewrite; no extra project settings are needed.
 
 ## Connecting a real AI provider
