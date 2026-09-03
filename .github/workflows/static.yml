@@ -33,7 +33,7 @@ jobs:
           cache: pnpm
 
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --config.minimum-release-age=0 --frozen-lockfile
 
       - name: Build app for GitHub Pages
         env:
