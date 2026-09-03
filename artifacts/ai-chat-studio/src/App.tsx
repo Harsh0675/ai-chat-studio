@@ -450,7 +450,7 @@ function ChatWorkspace() {
         content: message.content,
       })) ?? [];
 
-      if (!targetConversation || history.length === 0) {
+      if ((!targetConversation && !explicitHistory) || history.length === 0) {
         setIsStreaming(false);
         setResponseError(true);
         return;
