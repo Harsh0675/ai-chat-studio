@@ -31,9 +31,8 @@ pnpm install
 2) Run the Vite + React demo (from the workspace root):
 
 ```bash
-# from repo root
-pnpm --filter ./artifacts/ai-chat-studio install
-pnpm --filter ./artifacts/ai-chat-studio dev
+# from repo root, after the install above
+pnpm dev
 ```
 
 Or run it inside the artifact directly:
