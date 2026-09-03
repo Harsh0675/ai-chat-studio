@@ -269,7 +269,7 @@ function Sidebar({
           </button>
           <div className="mt-2 flex items-center gap-2.5 rounded-[9px] bg-[hsl(var(--sidebar-accent)/.55)] px-3 py-2.5">
             <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[hsl(var(--accent))] text-[11px] font-bold text-[hsl(var(--accent-foreground))]">M</div>
-            <div className="min-w-0"><p className="truncate text-[11px] font-medium">Sora workspace</p><p className="font-mono text-[9px] text-[hsl(var(--sidebar-foreground)/.42)]">Local only</p></div>
+            <div className="min-w-0"><p className="truncate text-[11px] font-medium">Sora workspace</p><p className="font-mono text-[9px] text-[hsl(var(--sidebar-foreground)/.42)]">On this device</p></div>
             <span className="ml-auto h-1.5 w-1.5 rounded-full bg-[hsl(var(--sidebar-primary))]" title="Saved locally" />
           </div>
         </div>
@@ -317,7 +317,7 @@ function SettingsModal({ open, onClose, demoMode, onDemoMode, model, onModel, da
         </div>
         <div className="space-y-5">
           <div className="flex items-center justify-between border-b pb-5">
-            <div><p className="text-[13px] font-semibold">Demo mode</p><p className="mt-1 max-w-[290px] text-[11px] leading-4 text-muted-foreground">Responses are simulated locally. Nothing leaves this browser.</p></div>
+            <div><p className="text-[13px] font-semibold">Local responses</p><p className="mt-1 max-w-[290px] text-[11px] leading-4 text-muted-foreground">Responses are generated on this device. Nothing leaves this browser.</p></div>
             <button data-testid="button-toggle-demo-mode" role="switch" aria-checked={demoMode} onClick={() => onDemoMode(!demoMode)} className={`relative h-6 w-11 rounded-full transition-colors ${demoMode ? 'bg-[hsl(var(--primary))]' : 'bg-muted'}`}><span className={`absolute top-1 h-4 w-4 rounded-full bg-[hsl(var(--card))] shadow-sm transition-transform ${demoMode ? 'translate-x-6' : 'translate-x-1'}`} /></button>
           </div>
           <div className="border-b pb-5">
@@ -372,7 +372,7 @@ function EmptyChat({ onPrompt, demoMode }: { onPrompt: (prompt: string) => void;
       <div className="grid max-w-2xl gap-2 sm:grid-cols-2">
         {suggestedPrompts.map((item, index) => <button data-testid={`button-suggested-prompt-${index}`} key={item.label} onClick={() => onPrompt(item.prompt)} className="group flex items-center justify-between rounded-xl border bg-[hsl(var(--card)/.68)] px-4 py-3.5 text-left transition-all hover:-translate-y-0.5 hover:border-[hsl(var(--primary)/.4)] hover:shadow-[var(--shadow-soft)]"><span><span className="block text-[12px] font-semibold">{item.label}</span><span className="mt-1 block text-[11px] text-muted-foreground">{item.prompt}</span></span><ArrowUp size={15} className="-rotate-45 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-[hsl(var(--primary))]" /></button>)}
       </div>
-      <div data-testid="status-demo-mode" className="mt-8 flex items-center gap-2 text-[10px] text-muted-foreground"><span className={`h-1.5 w-1.5 rounded-full ${demoMode ? 'bg-[hsl(var(--primary))]' : 'bg-muted-foreground'}`} /> Demo mode is {demoMode ? 'on' : 'off'} <span className="mx-1 h-3 w-px bg-border" /> Conversations stay on this device</div>
+      <div data-testid="status-demo-mode" className="mt-8 flex items-center gap-2 text-[10px] text-muted-foreground"><span className={`h-1.5 w-1.5 rounded-full ${demoMode ? 'bg-[hsl(var(--primary))]' : 'bg-muted-foreground'}`} /> Local responses are {demoMode ? 'on' : 'off'} <span className="mx-1 h-3 w-px bg-border" /> Conversations stay on this device</div>
     </div>
   );
 }
@@ -575,12 +575,12 @@ function ChatWorkspace() {
                 <div className="flex items-center gap-3 pb-2 text-[10px] text-muted-foreground"><span className="h-px flex-1 bg-border" /><span className="font-mono uppercase tracking-[0.15em]">Today</span><span className="h-px flex-1 bg-border" /></div>
                 {activeConversation.messages.map((message) => message.role === 'user' ? <UserMessage key={message.id} message={message} /> : <AssistantMessage key={message.id} message={message} copied={copiedId === message.id} onCopy={() => copyResponse(message)} />)}
                 {isStreaming && <TypingIndicator />}
-                {responseError && <div data-testid="status-response-error" className="flex items-center justify-between rounded-xl border border-[hsl(var(--destructive)/.3)] bg-[hsl(var(--destructive)/.07)] px-4 py-3 text-[12px] text-[hsl(var(--destructive))]"><span>{demoMode ? 'That response did not finish.' : 'Demo mode is off, so no response was generated.'}</span>{demoMode && <button data-testid="button-retry-response" onClick={() => void respondTo(activeConversation.id, 'retry')} className="font-semibold underline">Try again</button>}</div>}
+                {responseError && <div data-testid="status-response-error" className="flex items-center justify-between rounded-xl border border-[hsl(var(--destructive)/.3)] bg-[hsl(var(--destructive)/.07)] px-4 py-3 text-[12px] text-[hsl(var(--destructive))]"><span>{demoMode ? 'That response did not finish.' : 'Local responses are off, so no response was generated.'}</span>{demoMode && <button data-testid="button-retry-response" onClick={() => void respondTo(activeConversation.id, 'retry')} className="font-semibold underline">Try again</button>}</div>}
               </div>
             </div>
             <div className="mx-auto w-full max-w-3xl px-5 pb-5 pt-2 sm:px-8 sm:pb-8">
               <Composer ref={composerRef} draft={draft} setDraft={setDraft} onSubmit={sendMessage} disabled={isStreaming} />
-              <p data-testid="status-composer-mode" className="mt-2 text-center font-mono text-[9px] uppercase tracking-[0.12em] text-muted-foreground/65">{demoMode ? 'Demo mode · Responses are simulated' : 'Demo mode off · Turn it on for local responses'}</p>
+              <p data-testid="status-composer-mode" className="mt-2 text-center font-mono text-[9px] uppercase tracking-[0.12em] text-muted-foreground/65">{demoMode ? 'Local responses · Generated on this device' : 'Local responses off · Turn them on to reply'}</p>
             </div>
           </>
         ) : (
@@ -588,7 +588,7 @@ function ChatWorkspace() {
             <EmptyChat onPrompt={handlePrompt} demoMode={demoMode} />
             <div className="mx-auto w-full max-w-3xl px-5 pb-5 sm:px-8 sm:pb-8">
               <Composer ref={composerRef} draft={draft} setDraft={setDraft} onSubmit={sendMessage} disabled={isStreaming} />
-              <p data-testid="status-composer-mode" className="mt-2 text-center font-mono text-[9px] uppercase tracking-[0.12em] text-muted-foreground/65">{demoMode ? 'Demo mode · Responses are simulated' : 'Demo mode off · Turn it on for local responses'}</p>
+              <p data-testid="status-composer-mode" className="mt-2 text-center font-mono text-[9px] uppercase tracking-[0.12em] text-muted-foreground/65">{demoMode ? 'Local responses · Generated on this device' : 'Local responses off · Turn them on to reply'}</p>
             </div>
           </>
         )}
